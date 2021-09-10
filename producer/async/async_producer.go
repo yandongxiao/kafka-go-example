@@ -19,15 +19,20 @@ var count int64
 
 func Producer(topic string, limit int) {
 	config := sarama.NewConfig()
+
 	// 异步生产者不建议把 Errors 和 Successes 都开启，一般开启 Errors 就行
 	// 同步生产者就必须都开启，因为会同步返回发送成功或者失败
 	config.Producer.Return.Errors = true    // 设定是否需要返回错误信息
 	config.Producer.Return.Successes = true // 设定是否需要返回成功信息
+
+    // 调用 NewAsyncProducer
 	producer, err := sarama.NewAsyncProducer([]string{conf.HOST}, config)
 	if err != nil {
 		log.Fatal("NewSyncProducer err:", err)
 	}
 	defer producer.AsyncClose()
+
+
 	go func() {
 		// [!important] 异步生产者发送后必须把返回值从 Errors 或者 Successes 中读出来 不然会阻塞 sarama 内部处理逻辑 导致只能发出去一条消息
 		for {
@@ -43,6 +48,7 @@ func Producer(topic string, limit int) {
 			}
 		}
 	}()
+
 	// 异步发送
 	for i := 0; i < limit; i++ {
 		str := strconv.Itoa(int(time.Now().UnixNano()))

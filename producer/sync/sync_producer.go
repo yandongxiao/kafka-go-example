@@ -20,6 +20,7 @@ func Producer(topic string, limit int) {
 	// 因为同步生产者在发送之后就必须返回状态，所以需要两个都返回
 	config.Producer.Return.Successes = true
 	config.Producer.Return.Errors = true // 这个默认值就是 true 可以不用手动 赋值
+
 	// 同步生产者和异步生产者逻辑是一致的，Success或者Errors都是通过channel返回的，
 	// 只是同步生产者封装了一层，等channel返回之后才返回给调用者
 	// 具体见 sync_producer.go 文件72行 newSyncProducerFromAsyncProducer 方法
