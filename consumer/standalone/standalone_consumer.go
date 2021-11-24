@@ -29,6 +29,7 @@ func SinglePartition(topic string) {
 		log.Fatal("NewConsumer err: ", err)
 	}
 	defer consumer.Close()
+
 	// 参数1 指定消费哪个 topic
 	// 参数2 分区 这里默认消费 0 号分区 kafka 中有分区的概念，类似于ES和MongoDB中的sharding，MySQL中的分表这种
 	// 参数3 offset 从哪儿开始消费起走，正常情况下每次消费完都会将这次的offset提交到kafka，然后下次可以接着消费，
@@ -39,6 +40,7 @@ func SinglePartition(topic string) {
 		log.Fatal("ConsumePartition err: ", err)
 	}
 	defer partitionConsumer.Close()
+
 	// 会一直阻塞在这里
 	for message := range partitionConsumer.Messages() {
 		log.Printf("[Consumer] partitionid: %d; offset:%d, value: %s\n", message.Partition, message.Offset, string(message.Value))
@@ -46,6 +48,7 @@ func SinglePartition(topic string) {
 }
 
 // Partitions 多分区消费
+// 开启多个协程，每个协程负责一个分区
 func Partitions(topic string) {
 	config := sarama.NewConfig()
 	consumer, err := sarama.NewConsumer([]string{conf.HOST}, config)
