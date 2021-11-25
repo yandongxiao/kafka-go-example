@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/Shopify/sarama"
+
 	"kafka-go-example/conf"
 )
 
@@ -22,6 +23,11 @@ import (
 */
 
 // SinglePartition 单分区消费
+// Topics() ([]string, error)
+// Partitions(topic string) ([]int32, error)
+// ConsumePartition(topic string, partition int32, offset int64) (PartitionConsumer, error)
+// HighWaterMarks() map[string]map[int32]int64
+// Close() error
 func SinglePartition(topic string) {
 	config := sarama.NewConfig()
 	consumer, err := sarama.NewConsumer([]string{conf.HOST}, config)
@@ -51,32 +57,69 @@ func SinglePartition(topic string) {
 // 开启多个协程，每个协程负责一个分区
 func Partitions(topic string) {
 	config := sarama.NewConfig()
+	// sarama.NewConsumer 没有区分同步 consumer 还是异步 consumer
 	consumer, err := sarama.NewConsumer([]string{conf.HOST}, config)
 	if err != nil {
 		log.Fatal("NewConsumer err: ", err)
 	}
-	defer consumer.Close()
-	// 先查询该 topic 有多少分区
+	defer consumer.Close() // 注意关闭
+
+	// consumer.Topics() 方法：获取所有的topic名称
+	topics, _ := consumer.Topics()
+	for i := range topics {
+		log.Printf("tolic: %s", topics[i])
+	}
+	log.Printf("total number of topics: %d", len(topics))
+
+	// consumer.Topics() 方法：获取所有的topic的， 所有partition 的高水位
+	// 什么是高水位？在 kafka 中个就是水位，用消息位移来表征。它是已提交消息和未提交消息的分界线
+	// 什么是末端位移（Log End Offset）? 就是Broker中最后一个消息的位移，该消息可能未提交
+	waterMarks := consumer.HighWaterMarks() // 为什么没有返回error, 说明没有网络通信
+	for t, ps := range waterMarks {
+		for p, hw := range ps {
+			// TODO: 此处调用结果是空，未被执行
+			log.Printf("tolic: %v, partition: %v, hw: %v ", t, p, hw)
+		}
+	}
+	log.Printf("===========")
+
+	// consumer.Partitions() 方法：获取topic的所有分区，按分区ID排序返回
 	partitions, err := consumer.Partitions(topic)
 	if err != nil {
 		log.Fatal("Partitions err: ", err)
 	}
+
 	var wg sync.WaitGroup
 	wg.Add(len(partitions))
 	// 然后每个分区开一个 goroutine 来消费
 	for _, partitionId := range partitions {
 		go consumeByPartition(consumer, partitionId, &wg)
 	}
+
 	wg.Wait()
 }
 
+// partition consumer api
+// AsyncClose initiates a shutdown of the PartitionConsumer. This method will return immediately, after which you
+// should continue to service the 'Messages' and 'Errors' channels until they are empty. It is required to call this
+// function, or Close before a consumer object passes out of scope, as it will otherwise leak memory. You must call
+// this before calling Close on the underlying client.
+// AsyncClose()
+// Close() error
+// Messages() <-chan *ConsumerMessage
+// Errors() <-chan *ConsumerError
+// HighWaterMarkOffset() int64
 func consumeByPartition(consumer sarama.Consumer, partitionId int32, wg *sync.WaitGroup) {
 	defer wg.Done()
+	// consumer.ConsumePartition() 方法：引入分区消费者概念（PartitionConsumer），指定消费位点为 sarama.OffsetOldest
 	partitionConsumer, err := consumer.ConsumePartition(conf.Topic, partitionId, sarama.OffsetOldest)
 	if err != nil {
 		log.Fatal("ConsumePartition err: ", err)
 	}
-	defer partitionConsumer.Close()
+	defer partitionConsumer.Close() // 注意关闭
+
+	// TODO: 为什么所有 partition 的 hw 返回值都是 0?
+	log.Printf("tolic: %v, partition: %v, hw: %v ", conf.Topic, partitionId, partitionConsumer.HighWaterMarkOffset())
 	for message := range partitionConsumer.Messages() {
 		log.Printf("[Consumer] partitionid: %d; offset:%d, value: %s\n", message.Partition, message.Offset, string(message.Value))
 	}

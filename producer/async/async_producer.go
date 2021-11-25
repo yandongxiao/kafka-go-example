@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Shopify/sarama"
+
 	"kafka-go-example/conf"
 )
 
@@ -17,36 +18,52 @@ import (
 
 var count int64
 
+// sync producer API
+// AsyncClose()
+// Close() error
+// Input() chan<- *ProducerMessage
+// Successes() <-chan *ProducerMessage
+// Errors() <-chan *ProducerError
 func Producer(topic string, limit int) {
 	config := sarama.NewConfig()
 
-	// 异步生产者不建议把 Errors 和 Successes 都开启，一般开启 Errors 就行
-	// 同步生产者就必须都开启，因为会同步返回发送成功或者失败
-	config.Producer.Return.Errors = true    // 设定是否需要返回错误信息
-	config.Producer.Return.Successes = true // 设定是否需要返回成功信息
+	config.Producer.Return.Errors = false   // 从 error channel 只接收 error
+	config.Producer.Return.Successes = true // 从 success channel 接收 message
 
-    // 调用 NewAsyncProducer
+	// 调用 NewAsyncProducer
 	producer, err := sarama.NewAsyncProducer([]string{conf.HOST}, config)
 	if err != nil {
 		log.Fatal("NewSyncProducer err:", err)
 	}
+	// AsyncClose triggers a shutdown of the producer. The shutdown has completed
+	// when both the Errors and Successes channels have been closed. When calling
+	// AsyncClose, you *must* continue to read from those channels in order to
+	// drain the results of any messages in flight.
 	defer producer.AsyncClose()
-
 
 	go func() {
 		// [!important] 异步生产者发送后必须把返回值从 Errors 或者 Successes 中读出来 不然会阻塞 sarama 内部处理逻辑 导致只能发出去一条消息
-		for {
+		// 这里的实现，显然是有问题的
+		chSuccess := producer.Successes()
+		chError := producer.Errors()
+		for chError != nil || chSuccess != nil {
 			select {
-			case s := <-producer.Successes():
+			case s := <-chSuccess:
 				if s != nil {
 					log.Printf("[Producer] Success: key:%v msg:%+v \n", s.Key, s.Value)
+				} else {
+					chSuccess = nil
 				}
-			case e := <-producer.Errors():
+
+			case e := <-chError:
 				if e != nil {
 					log.Printf("[Producer] Errors：err:%v msg:%+v \n", e.Msg, e.Err)
+				} else {
+					chError = nil
 				}
 			}
 		}
+		log.Printf("success channel && error channel done")
 	}()
 
 	// 异步发送
