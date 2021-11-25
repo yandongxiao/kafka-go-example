@@ -6,13 +6,19 @@ import (
 	"time"
 
 	"github.com/Shopify/sarama"
+
 	"kafka-go-example/conf"
 )
+
+// Go 客户端 sarama 暂时并没有实现 事务功能。
+// 事务型 Producer 也不惧进程的重启。Producer 重启回来后，Kafka 依然保证它们发送消息的精确一次处理。
 
 func Producer(topic string, limit int) {
 	config := sarama.NewConfig()
 	config.Producer.Return.Successes = true
 	config.Producer.Return.Errors = true
+
+	// 开启幂等性，需要一些列的设置：https://www.lixueduan.com/post/kafka/10-exactly-once-impl/
 	config.Producer.Idempotent = true                // 开启幂等性
 	config.Producer.RequiredAcks = sarama.WaitForAll // 开启幂等性后 acks 必须设置为 -1 即所有 isr 列表中的 broker 都ack后才ok
 	config.Net.MaxOpenRequests = 1                   // 开启幂等性后 并发请求数也只能为1

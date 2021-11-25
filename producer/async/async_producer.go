@@ -69,6 +69,7 @@ func Producer(topic string, limit int) {
 	// 异步发送
 	for i := 0; i < limit; i++ {
 		str := strconv.Itoa(int(time.Now().UnixNano()))
+		// The partitioning key for this message. 主要是用来为 message 进行分区的
 		msg := &sarama.ProducerMessage{Topic: topic, Key: nil, Value: sarama.StringEncoder(str)}
 		// 异步发送只是写入内存了就返回了，并没有真正发送出去
 		// sarama 库中用的是一个 channel 来接收，后台 goroutine 异步从该 channel 中取出消息并真正发送

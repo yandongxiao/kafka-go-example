@@ -15,6 +15,8 @@ import (
 	名词 sync producer
 */
 
+// Go 客户端 sarama 暂时并没有实现 事务功能。
+
 // sync producer api
 // SendMessage(msg *ProducerMessage) (partition int32, offset int64, err error)
 // SendMessages(msgs []*ProducerMessage) error
